@@ -1,9 +1,4 @@
 require('dotenv').config();
-const moment = require('moment');
-
-// includes the start date and excludes the end date
-const startDate = moment('2022-01-01'); // starting from this date
-const endDate = moment('2023-02-03'); // excluding this date
 
 const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
 const SHOPIFY_DOMAIN = process.env.SHOPIFY_DOMAIN;
@@ -43,7 +38,7 @@ async function fetchCustomers(afterCursor) {
   return data.data.customers;
 }
 
-async function getCustomers(startDate) {
+async function getCustomers() {
   let customers = [];
   let afterCursor = null;
 
@@ -51,14 +46,9 @@ async function getCustomers(startDate) {
     const result = await fetchCustomers(afterCursor);
     for (let edge of result.edges) {
       const customer = edge.node;
-      /*
-      const createdAt = moment(customer.createdAt);
-      if (createdAt.isBefore(startDate)) {
-        return customers;
-      }
-      */
       customers.push(customer);
     }
+    console.log({customers: customers.reverse()})
     if (!result.pageInfo.hasNextPage) break;
     afterCursor = result.edges[result.edges.length - 1].cursor;
 
@@ -69,6 +59,6 @@ async function getCustomers(startDate) {
   return customers;
 }
 
-getCustomers(startDate)
+getCustomers()
   .then(customers => console.log(customers.length) || customers)
   .then(customers => console.log(customers))
