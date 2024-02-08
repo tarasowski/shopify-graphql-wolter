@@ -1,11 +1,14 @@
 require('dotenv').config();
+const moment = require('moment');
+
+// includes the start date and excludes the end date
+const startDate = moment('2024-02-01'); // starting from this date
+const endDate = moment('2024-02-03'); // excluding this date
 
 const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
 const SHOPIFY_DOMAIN = process.env.SHOPIFY_DOMAIN;
 const SHOPIFY_API_VERSION = process.env.SHOPIFY_API_VERSION;
 
-const startDate = new Date('2022-02-01T00:00:00Z'); // Start of February
-const endDate = new Date('2022-02-04T23:59:59Z'); // End of February
 
 const headers = {
   'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
@@ -42,10 +45,11 @@ async function fetchCustomers(afterCursor) {
 }
 
 const filterByDate = (customers, startDate, endDate) => {
-  return customers.filter(customer => {
-    const createdAt = new Date(customer.createdAt);
-    return createdAt >= startDate && createdAt <= endDate;
-  });
+    const newCustomers = customers.filter(customer => {
+      const createdAt = moment(customer.createdAt);
+      return createdAt.isBetween(startDate, endDate);
+    });
+    return newCustomers;
 }
 
 async function getCustomers(numberOfCustomers) {
@@ -67,9 +71,10 @@ async function getCustomers(numberOfCustomers) {
   return customers;
 }
 
-const numberOfCustomers = 150; // Change this to the number of customers you want to fetch
+const numberOfCustomers = 200; // Change this to the number of customers you want to fetch
 
 getCustomers(numberOfCustomers)
   .then(customers => console.log(customers.length) || customers)
   .then(customers => filterByDate(customers, startDate, endDate))
   .then(customers => console.log(customers.length) || customers)
+  .then(customers => console.log(customers))
