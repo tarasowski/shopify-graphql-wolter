@@ -1,47 +1,75 @@
 require('dotenv').config();
-const moment = require('moment');
 
 const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
 const SHOPIFY_DOMAIN = process.env.SHOPIFY_DOMAIN;
 const SHOPIFY_API_VERSION = process.env.SHOPIFY_API_VERSION;
 
-const startDate = moment('2024-01-01');
-const endDate = moment('2024-02-09');
-const numberOfCustomers = 5;
+const startDate = new Date('2022-02-01T00:00:00Z'); // Start of February
+const endDate = new Date('2022-02-04T23:59:59Z'); // End of February
 
 const headers = {
   'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
   'Content-Type': 'application/json',
 };
 
-const query = `
-{
-  customers(first: ${numberOfCustomers}, reverse: true) { 
-    edges {
-      node {
-        id
-        displayName
-        createdAt
+async function fetchCustomers(afterCursor) {
+  const query = `
+    {
+      customers(first: 100, reverse: true, after: ${afterCursor ? `"${afterCursor}"` : null}) {
+        pageInfo {
+          hasNextPage
+        }
+        edges {
+          cursor
+          node {
+            id
+            displayName
+            createdAt
+          }
+        }
       }
     }
-  }
-}
-`;
+  `;
 
-fetch(`https://${SHOPIFY_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, {
-  method: 'POST',
-  headers: headers,
-  body: JSON.stringify({ query: query }),
-})
-  .then(response => response.json())
-  .then(data => console.log(JSON.stringify(data, null, 4)) || data)
-  .then(data => {
-    const customers = data.data.customers.edges.map(edge => edge.node);
-    const newCustomers = customers.filter(customer => {
-      const createdAt = moment(customer.createdAt);
-      return createdAt.isBetween(startDate, endDate);
-    });
-    return newCustomers;
-  })
-  .then(newCustomers => console.log(JSON.stringify(newCustomers, null, 4)) || newCustomers)
-  .catch(error => console.error('Error:', error));
+  const response = await fetch(`https://${SHOPIFY_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, {
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify({ query: query }),
+  });
+
+  const data = await response.json();
+  return data.data.customers;
+}
+
+const filterByDate = (customers, startDate, endDate) => {
+  return customers.filter(customer => {
+    const createdAt = new Date(customer.createdAt);
+    return createdAt >= startDate && createdAt <= endDate;
+  });
+}
+
+async function getCustomers(numberOfCustomers) {
+  let customers = [];
+  let afterCursor = null;
+
+  while (customers.length < numberOfCustomers) {
+    const result = await fetchCustomers(afterCursor);
+    customers = customers.concat(result.edges.map(edge => edge.node));
+    if (!result.pageInfo.hasNextPage) break;
+    afterCursor = result.edges[result.edges.length - 1].cursor;
+  }
+
+  // If we fetched more customers than needed due to pagination, trim the array down to the desired size
+  if (customers.length > numberOfCustomers) {
+    customers = customers.slice(0, numberOfCustomers);
+  }
+
+  return customers;
+}
+
+const numberOfCustomers = 150; // Change this to the number of customers you want to fetch
+
+getCustomers(numberOfCustomers)
+  .then(customers => console.log(customers.length) || customers)
+  .then(customers => filterByDate(customers, startDate, endDate))
+  .then(customers => console.log(customers.length) || customers)
