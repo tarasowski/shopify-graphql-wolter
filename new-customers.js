@@ -2,13 +2,12 @@ require('dotenv').config();
 const moment = require('moment');
 
 // includes the start date and excludes the end date
-const startDate = moment('2024-02-01'); // starting from this date
-const endDate = moment('2024-02-03'); // excluding this date
+const startDate = moment('2022-01-01'); // starting from this date
+const endDate = moment('2023-02-03'); // excluding this date
 
 const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
 const SHOPIFY_DOMAIN = process.env.SHOPIFY_DOMAIN;
 const SHOPIFY_API_VERSION = process.env.SHOPIFY_API_VERSION;
-
 
 const headers = {
   'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
@@ -18,7 +17,7 @@ const headers = {
 async function fetchCustomers(afterCursor) {
   const query = `
     {
-      customers(first: 100, reverse: true, after: ${afterCursor ? `"${afterCursor}"` : null}) {
+      customers(first: 100, after: ${afterCursor ? `"${afterCursor}"` : null}) {
         pageInfo {
           hasNextPage
         }
@@ -44,37 +43,32 @@ async function fetchCustomers(afterCursor) {
   return data.data.customers;
 }
 
-const filterByDate = (customers, startDate, endDate) => {
-    const newCustomers = customers.filter(customer => {
-      const createdAt = moment(customer.createdAt);
-      return createdAt.isBetween(startDate, endDate);
-    });
-    return newCustomers;
-}
-
-async function getCustomers(numberOfCustomers) {
+async function getCustomers(startDate) {
   let customers = [];
   let afterCursor = null;
 
-  while (customers.length < numberOfCustomers) {
+  while (true) {
     const result = await fetchCustomers(afterCursor);
-    customers = customers.concat(result.edges.map(edge => edge.node));
+    for (let edge of result.edges) {
+      const customer = edge.node;
+      /*
+      const createdAt = moment(customer.createdAt);
+      if (createdAt.isBefore(startDate)) {
+        return customers;
+      }
+      */
+      customers.push(customer);
+    }
     if (!result.pageInfo.hasNextPage) break;
     afterCursor = result.edges[result.edges.length - 1].cursor;
-  }
 
-  // If we fetched more customers than needed due to pagination, trim the array down to the desired size
-  if (customers.length > numberOfCustomers) {
-    customers = customers.slice(0, numberOfCustomers);
+    // Wait for 2 second to respect the API rate limit
+    await new Promise(resolve => setTimeout(resolve, 2000));
   }
 
   return customers;
 }
 
-const numberOfCustomers = 200; // Change this to the number of customers you want to fetch
-
-getCustomers(numberOfCustomers)
-  .then(customers => console.log(customers.length) || customers)
-  .then(customers => filterByDate(customers, startDate, endDate))
+getCustomers(startDate)
   .then(customers => console.log(customers.length) || customers)
   .then(customers => console.log(customers))
